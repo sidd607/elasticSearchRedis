@@ -43,6 +43,29 @@ def addMessageToElactic(message):
 	return reply
 
 
+@app.route('/search/', methods = ['GET'])
+def invalid():
+	return jsonify({"error": "Nice Error"})
+
+
+@app.route('/search/<string:searchMessage>', methods = ['GET'])
+def getMessageElastic(searchMessage):
+	res = es.search(index = "messages", doc_type = "text", body = {"query": {"match" : {"content" : searchMessage}}})
+	results = {}
+	results["found"] = res["hits"]["total"]
+	if results["found"] <= 0:
+		return jsonify(results)
+	messages = res["hits"]["hits"]
+	repMsg = []
+	for hit in messages:
+		tmp = {}
+		tmp["content"] = hit["_source"]["content"]
+		tmp["posted-at"] = hit["_source"]["posted-at"]
+		repMsg.append(tmp)
+	results["messages"] = repMsg
+	return jsonify(results)
+
+
 @app.errorhandler(404)
 def notFound():
 	return make_response(jsonify({'error': 'Not found'}), 404)
@@ -50,5 +73,3 @@ def notFound():
 
 if __name__ == '__main__':
 	app.run(debug=True)
-
-

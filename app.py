@@ -1,6 +1,11 @@
 from flask import Flask, abort, request, jsonify, make_response
 from elasticsearch import Elasticsearch
 from datetime import datetime
+import redis
+
+#Opening a redis connection
+
+r = redis.StrictRedis()
 
 es = Elasticsearch()
 
@@ -10,23 +15,13 @@ app = Flask(__name__)
 def index():
 	return "<center>Demo Redis and ElasticSearch</center>"
 
-
-@app.route('/messages')
-def get_messages():
-	return jsonify({'tasks' : 1})
-
-
-@app.route('/tasks/<int:taskId>', methods = ['GET'])
-def get_message(taskId):
-	task = [task for task in tasks if task['id'] == taskId]
-	if len(task) == 0:
-		return jsonify({"result": "False"})
-	return jsonify({"task": task[0]})
-
-
-@app.route('/index/message/', methods = ['POST'])
+@app.route('/index/', methods = ['POST'])
 def addMessage():
-	reply = addMessageToElactic(request.json)
+	replyElastic = addMessageToElactic(request.json)
+	replyRedis = addMessageToRedis(request.json)
+	reply = {}
+	reply["createdRedis"] = replyRedis["created"]
+	reply["createdElastic"] = replyElastic["created"]
 	return jsonify(reply), 201
 
 def addMessageToElactic(message):
@@ -37,11 +32,46 @@ def addMessageToElactic(message):
 	reply = {}
 	if msg["created"] == True:
 		reply["created"] = True
-		reply["id"] = msg["_id"]
 	else :
 		reply["created"] = False
 	return reply
 
+def addMessageToRedis(message):
+	length = r.llen("messages")
+	messageKey = "message:" + str(length)
+	
+	x = r.hset(messageKey, "content", message['content'])
+	if int(x) == 0:
+		return {"created" : False}
+	
+	x = r.hset(messageKey, "posted-at", datetime.now())
+	if int(x) == 0:
+		return {"created" : False}
+	
+	x = r.rpush("messages", messageKey)
+	if int(x) == 0:
+		return {"created": False}
+
+	return {"created" : True}
+
+
+@app.route('/index/', methods = ['GET'])
+def search():
+	reply = {}
+	noMessages = int(r.llen("messages"))
+	if noMessages == 0:
+		return jsonify({"messages":0}), 201
+	
+	reply["message"] = noMessages
+	msgList = []
+	messageKey = r.lrange("messages", 0, noMessages)
+
+	for key in messageKey:
+		msgList.append(r.hgetall(key))
+
+	reply["messageList"] = msgList
+
+	return jsonify(reply), 201
 
 @app.route('/search/', methods = ['GET'])
 def invalid():

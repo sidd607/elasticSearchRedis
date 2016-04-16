@@ -1,4 +1,4 @@
-## Example for integrating Redis and ElasticSearch in Python
+## Integrating Redis and ElasticSearch in Python
 
 This application consists of mainly 3 apis
 1. POST /index - This takes in a sample message and indexes into ElasticSearch and Redis.
